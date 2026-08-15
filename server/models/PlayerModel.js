@@ -6,7 +6,8 @@ const playerSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true
+    required: true,
+    select: false
   },
   role: {
     type: String,
@@ -16,6 +17,9 @@ const playerSchema = new mongoose.Schema({
   refreshTokens: {
     type: [String],
     default: []
+  },
+  passwordChangedAt: {
+    type: Date
   }
 });
 
