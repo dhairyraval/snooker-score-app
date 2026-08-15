@@ -5,6 +5,7 @@ import cors from "cors";
 import playersRouter from "./routes/playersRoutes.js";
 import gamesRouter from "./routes/gamesRoutes.js";
 import contactRouter from "./routes/contactRoutes.js";
+import authRouter from "./routes/authRoutes.js"
 
 import { connectDB } from "./config/db.js";
 
@@ -25,6 +26,7 @@ const PORT = process.env.PORT || 5001;
 
 app.use(express.json());
 
+app.use("/api/auth", authRouter);
 app.use("/api/players", playersRouter);
 app.use("/api/games", gamesRouter);
 app.use("/api/contact", contactRouter);
