@@ -16,12 +16,21 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
     "express-winston": "^4.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.2",
     "nodemailer": "^9.0.5",
     "nodemon": "^3.1.14",
+    "rate-limit-mongo": "^2.3.2",
     "winston": "^3.19.0",
     "winston-mongodb": "^7.0.1"
+  },
+  "overrides": {
+    "underscore": "^1.13.7"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "fsevents@2.3.3": true
   }
 }
