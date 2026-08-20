@@ -1,4 +1,3 @@
-// import Transaction from "../models/Transaction.js";
 
 export async function getAllGames(req, res) {
   try {

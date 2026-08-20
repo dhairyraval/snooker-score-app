@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 import { generateAccessToken } from "../middleware/authMiddleware.js";
+import { logger } from "../logger.js";
 
 export async function registerPlayer(req, res) {
   try {
@@ -22,11 +23,19 @@ export async function registerPlayer(req, res) {
   }
 }
 
-export async function loginPlayer(req, res) {
+export async function loginPlayer(req, res, next) {
   try {
     const player = await PlayerModel.findOne({ name: req.body.name }).select("+password");
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
     if (player == null) {
-      return res.status(404).json({ message: "User with given name not found." });
+      logger.warn('Failed login attempt: user not found', {
+        attemptedName: name,
+        ip: clientIp,
+        userAgent,
+        reason: 'USER_NOT_FOUND',
+      });
+      return res.status(401).json({ message: "User with given name not found." });
     }
     if (await bcrypt.compare(req.body.password, player.password)) {
       // provide jwt & refresh tokens
@@ -40,11 +49,18 @@ export async function loginPlayer(req, res) {
       res.status(200).json({ message: "Logged In Sucessfully", accessToken: accessToken, refreshToken: refreshToken });
     }
     else {
-      res.status(200).send("Incorrect password!");
+      // logger.warn('Failed login attempt: incorrect password', {
+      //   playerId: player._id,
+      //   attemptedName: player.name,
+      //   ip: clientIp,
+      //   userAgent,
+      //   reason: 'INVALID_PASSWORD',
+      // });
+      res.status(401).send("Incorrect password!");
     }
 
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    next(error);
   }
 }
 
