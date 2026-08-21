@@ -1,9 +1,17 @@
 import mongoose from "mongoose";
+
+export function generateAvatarSeed(name) {
+  const randomNum = Math.floor(Math.random() * 10) + 1;
+  return `${name || 'player'}-${randomNum}`;
+}
+
 const playerSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
+      minlength: [2, 'Name must be at least 2 characters'],
+      maxlength: [30, 'Name cannot exceed 30 characters']
     },
     password: {
       type: String,
@@ -33,9 +41,8 @@ const playerSchema = new mongoose.Schema(
     avatarSeed: {
       type: String,
       default: function () {
-        const randomNum = Math.floor(Math.random() * 10) + 1;
-        return `${this.name}-${randomNum}`;
-      },
+        return generateAvatarSeed(this.name);
+      }
     }
   },
   {
@@ -66,5 +73,9 @@ playerSchema.virtual('avatarUrl').get(function () {
 
 // --- INDEXES ---
 playerSchema.index({ name: 'text' });
+
+playerSchema.methods.regenerateAvatar = function () {
+  this.avatarSeed = generateAvatarSeed(this.name);
+};
 
 export const PlayerModel = mongoose.model("Player", playerSchema);

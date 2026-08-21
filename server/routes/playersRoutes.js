@@ -1,10 +1,14 @@
 import express from "express";
+import { protect } from "../middleware/authMiddleware.js";
+import { getAllPlayers, getMyDetails, getPlayer, getPlayerStats, updateProfile } from "../controllers/playersController.js";
 
-import { getAllPlayers, getPlayer } from "../controllers/playersController.js";
 
 const router = express.Router();
 
-router.get("/", getAllPlayers);     // get list of all registered players
-router.get("/:id", getPlayer);  // get player details (using player id)
+router.get("/", protect, getAllPlayers);     // get list of all registered players
+router.get("/:id", protect, getPlayer);      // get player info (name, avatar, winStreak, lean query)
+router.get("/me", protect, getMyDetails);    // get all of current player's details
+router.patch("/me", protect, updateProfile);     // update player profile details (username)
+router.get("/:id/stats", protect, getPlayerStats)    // get detailed player stats
 
 export default router;

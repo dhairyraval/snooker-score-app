@@ -1,4 +1,4 @@
-import PlayerModel from "../models/PlayerModel.js";
+import { PlayerModel } from "../models/PlayerModel.js";
 
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";

@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import PlayerModel from "../models/PlayerModel.js";
+import { PlayerModel } from "../models/PlayerModel.js";
 
 export async function protect(req, res, next) {
     const authHeader = req.headers['authorization'];
