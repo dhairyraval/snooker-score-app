@@ -49,5 +49,5 @@ export async function isAdmin(req, res, next) {
 };
 
 export function generateAccessToken(player) {
-    return jwt.sign({ sub: player._id, name: player.name, role: player.role }, process.env.JWT_SECRET, { expiresIn: "15m" });
+    return jwt.sign({ sub: player._id, name: player.name, role: player.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
 }

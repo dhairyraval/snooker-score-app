@@ -65,8 +65,13 @@ export async function loginPlayer(req, res, next) {
 }
 
 export async function handleRefreshToken(req, res) {
-  const refreshToken = req.body.refreshToken;
-  if (refreshToken == null) { return res.sendStatus(401); }
+  const refreshToken = req.body?.refreshToken;
+  if (!refreshToken || refreshToken === 'undefined') {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized: Refresh token missing."
+    });
+  }
 
   let decoded;
   try {
@@ -214,4 +219,35 @@ export async function logoutAll(req, res) {
 
   return res.status(200).json({ message: "Logged out of all devices successfully." });
 
+}
+
+
+export async function refreshAccessToken(req, res) {
+  try {
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({ success: false, message: "Refresh token missing" });
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    // Verify token exists in database (handles rotation/revocation)
+    const player = await PlayerModel.findById(decoded.sub);
+    if (!player || !player.refreshTokens.includes(refreshToken)) {
+      return res.status(403).json({ success: false, message: "Invalid or revoked refresh token" });
+    }
+
+    // Issue fresh 15-minute access token
+    const newAccessToken = jwt.sign(
+      { sub: player._id, name: player.name, role: player.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    return res.status(200).json({ accessToken: newAccessToken });
+
+  } catch (error) {
+    return res.status(403).json({ message: "Session expired. Please log in." });
+  }
 }

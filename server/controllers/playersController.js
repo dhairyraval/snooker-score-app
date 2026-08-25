@@ -87,12 +87,11 @@ export async function getPlayerStats(req, res) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: "Invalid player ID format." });
     }
-    const playerStats = await PlayerModel.findById(id, 'name avatarSeed winRate avgScore')
-      .lean();
-    if (!playerStats) {
+    const player = await PlayerModel.findById(id, '-refreshTokens -passwordChangedAt');
+    if (!player) {
       return res.status(404).json({ success: false, message: "Error 404: Player not found" });
     }
-    res.status(200).json({ success: true, playerStats })
+    res.status(200).json({ success: true, player })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

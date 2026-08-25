@@ -69,5 +69,6 @@ const gameSchema = new mongoose.Schema(
 
 // -- INDEXED --
 gameSchema.index({name: 'text'});
+gameSchema.index({ players: 1, createdAt: -1 });
 
 export const GameModel = mongoose.model("Game", gameSchema);
