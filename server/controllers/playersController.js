@@ -5,13 +5,11 @@ export async function getAllPlayers(req, res) {
   try {
     const {
       page = 1,
-      limit = 1,
+      limit = 10,
       search,
       sortBy = 'name',
       sortOrder = 'desc'
     } = req.query;
-    const playerList = await PlayerModel.find();
-
 
     // dynamic filter obj
     const filter = {}

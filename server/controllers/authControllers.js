@@ -49,17 +49,11 @@ export async function loginPlayer(req, res, next) {
       res.status(200).json({ message: "Logged In Sucessfully", accessToken: accessToken, refreshToken: refreshToken });
     }
     else {
-      // logger.warn('Failed login attempt: incorrect password', {
-      //   playerId: player._id,
-      //   attemptedName: player.name,
-      //   ip: clientIp,
-      //   userAgent,
-      //   reason: 'INVALID_PASSWORD',
-      // });
       res.status(401).send("Incorrect password!");
     }
 
   } catch (error) {
+    res.status(500).send("Internal Server Error");
     next(error);
   }
 }

@@ -3,11 +3,37 @@ import mongoose from "mongoose";
 const VALID_BALLS = ['RED', 'YELLOW', 'GREEN', 'BROWN', 'BLUE', 'PINK', 'BLACK'];
 const VALID_PENALTIES = [0, 4, 5, 6, 7];
 
+
+const gamePlayerSchema = new mongoose.Schema({
+  player: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Player',
+    default: null // Allows guests to have no Player document
+  },
+  displayName: {
+    type: String,
+    required: true,
+    trim: true // Stores the name for guests or cached name for registered users
+  },
+  isGuest: {
+    type: Boolean,
+    default: false
+  },
+  status: {
+    type: String,
+    enum: ['ACTIVE', 'FORFEITED', 'LEFT'],
+    default: 'ACTIVE'
+  },
+  joinedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 const eventSchema = new mongoose.Schema(
   {
     currPlayer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Player',
       required: true
     },
     breakPots: {
@@ -19,14 +45,14 @@ const eventSchema = new mongoose.Schema(
     runningScores: {
       type: Map,
       of: Number,
-      default: () => new Map()
+      default: {}
     },
     timestamp: {
       type: Date,
       default: Date.now
     },
   },
-  { _id: false } // Avoids creating a separate ObjectId for every single in-game tap
+  { _id: false }
 );
 
 const gameSchema = new mongoose.Schema(
@@ -37,8 +63,17 @@ const gameSchema = new mongoose.Schema(
       trim: true
     },
     players: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
+      type: [gamePlayerSchema],
       default: []
+    },
+    winner: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    host: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Player',
+      required: true,
     },
     visibility: {
       type: String,
@@ -47,13 +82,13 @@ const gameSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['ONGOING', 'COMPLETE'],
+      enum: ['ONGOING', 'COMPLETE', 'ABANDONED'],
       default: 'ONGOING'
     },
     finalScores: {
       type: Map,
       of: Number,
-      default: () => new Map()
+      default: {}
     },
     events: {
       type: [eventSchema],
@@ -68,7 +103,7 @@ const gameSchema = new mongoose.Schema(
 );
 
 // -- INDEXED --
-gameSchema.index({name: 'text'});
-gameSchema.index({ players: 1, createdAt: -1 });
+gameSchema.index({ name: 'text' });
+gameSchema.index({ status: 1, 'players.player': 1 });
 
 export const GameModel = mongoose.model("Game", gameSchema);
