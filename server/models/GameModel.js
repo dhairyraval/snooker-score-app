@@ -85,6 +85,10 @@ const gameSchema = new mongoose.Schema(
       enum: ['ONGOING', 'COMPLETE', 'ABANDONED'],
       default: 'ONGOING'
     },
+    curr_turn: {
+      type: Number,
+      default: 0
+    },
     finalScores: {
       type: Map,
       of: Number,

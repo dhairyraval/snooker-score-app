@@ -1,6 +1,6 @@
 import express from "express";
 
-import { getAllGames, getGame, createGame, addGuest, addPlayer, joinGame, addGameEvent, updateGame, deleteGame } from "../controllers/gamesController.js";
+import { getAllGames, getGame, createGame, addGuest, addPlayer, joinGame, startGame ,addGameEvent, updateGame, deleteGame } from "../controllers/gamesController.js";
 import { protect, isHostOrAdmin } from "../middleware/authMiddleware.js";
 import { checkNoOngoingGame } from "../middleware/gameGuard.js";
 
@@ -13,6 +13,7 @@ router.post("/:id/add-guest", protect, isHostOrAdmin, addGuest); // host/admin a
 router.post("/:id/add-player", protect, isHostOrAdmin, addPlayer); // host/admin adds player
 router.post("/:id/join", protect, joinGame); // player joins existing game directly
 router.post("/:id/event", addGameEvent);     // update a game (add event)
+router.patch("/:id/start", protect, isHostOrAdmin, startGame);
 router.patch("/:id", updateGame);     // update a game's final score
 router.delete("/:id", deleteGame);     // delete a game (using game id)
 

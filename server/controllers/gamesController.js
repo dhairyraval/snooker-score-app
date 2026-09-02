@@ -255,6 +255,67 @@ export async function joinGame(req, res) {
   }
 }
 
+// function used to sort final order of game players and start game (notify all players)
+// Currently game model does not have a status: "LOBBY"
+// if "LOBBY" status is added in the future, game status would be updated here to "ONGOING"
+export async function startGame(req, res, next) {
+  try {
+    const game = req.game;
+    const subDocIds = req.body?.subDocIds;
+
+    if (game.status !== "ONGOING") {
+      return res.status(409).json({ message: "Game has concluded." });
+    }
+
+    if (!game.players || game.players.length < 1) {
+      return res.status(400).json({ message: "Cannot start a game with no players." });
+    }
+
+    if (subDocIds != null) {
+
+      if (!Array.isArray(subDocIds)) {
+        return res.status(400).json({ message: "Error: Invalid list of players submitted" });
+      }
+
+      // check length
+      if (subDocIds.length !== game.players.length) {
+        return res.status(400).json({ message: "Error: Sorted no. of players do not match saved players in game" });
+      }
+
+      const uniqueIds = new Set(subDocIds);
+      if (uniqueIds.size !== game.players.length) {
+        return res.status(400).json({ message: "Duplicate player IDs found in order list." });
+      }
+
+      const playerMap = new Map(game.players.map(p => [p._id.toString(), p]));
+      const reOrdered = [];
+      for (const subDocId of subDocIds) {
+        const playerObj = playerMap.get(subDocId);
+        if (!playerObj) {
+          return res.status(400).json({ message: `Player not found: ${subDocId}` });
+        }
+        reOrdered.push(playerObj);
+      }
+
+      // overwrite new order
+      game.players = reOrdered;
+      game.markModified("players");
+    }
+
+    await game.save();
+
+
+
+    //sockets update
+    // req.io?.to(game._id.toString()).emit("game_started", { game });
+
+    return res.status(200).json({ message: "Game started successfully", game });
+
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function updateGame(req, res) {
   try {
     // TODO
