@@ -30,7 +30,7 @@ export async function loginPlayer(req, res, next) {
     const userAgent = req.headers['user-agent'];
     if (player == null) {
       logger.warn('Failed login attempt: user not found', {
-        attemptedName: name,
+        attemptedName: req.body.name,
         ip: clientIp,
         userAgent,
         reason: 'USER_NOT_FOUND',

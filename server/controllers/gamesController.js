@@ -128,6 +128,133 @@ export async function createGame(req, res) {
   }
 }
 
+export async function addGuest(req, res) {
+  try {
+    const gName = req.body?.gName;
+    const game = req.game;
+    if (!gName || typeof gName !== "string" || gName.trim().length === 0) {
+      return res.status(400).json({ message: "Error: Need to provide guest name" });
+    }
+
+    const trimmedName = gName.trim();
+    if (trimmedName.length > 20) {
+      return res.status(400).json({ message: "Guest name must be 20 characters or fewer." });
+    }
+
+    const nameExists = game.players.some(
+      (p) => p.displayName.toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (nameExists) {
+      return res.status(409).json({ message: "A player with this name is already in the lobby." });
+    }
+
+    const sanitizedGuest = {
+      player: null,
+      displayName: trimmedName,
+      isGuest: true,
+      status: "ACTIVE"
+    }
+
+    game.players.push(sanitizedGuest);
+    await game.save()
+
+    const createdGuest = game.players[game.players.length - 1];
+
+    // req.io?.to(game._id.toString()).emit("player_joined", createdGuest);
+
+    return res.status(201).json({
+      message: "Guest added successfully",
+      player: createdGuest,
+      players: game.players
+    });
+  } catch (error) {
+    console.error("Error adding guest:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+}
+
+export async function addPlayer(req, res) {
+  try {
+    const playerToAdd = await PlayerModel.findById(req.body?.pId);
+
+    if (!playerToAdd) {
+      return res.status(409).json({ message: "Error: Invalid player id provided" });
+    }
+
+    const game = req.game;
+
+    // check if player's already joined in game
+    if (game.players.some(p => p.player && p.player.toString() === playerToAdd._id.toString())) {
+      return res.status(409).json({ message: "Player already added to game" });
+    }
+
+    const sanitizedPlayer = {
+      player: playerToAdd._id,
+      displayName: playerToAdd.name,
+      isGuest: false,
+      status: "ACTIVE"
+    }
+
+    game.players.push(sanitizedPlayer);
+    await game.save()
+
+    const createdPlayer = game.players[game.players.length - 1];
+
+    // req.io?.to(game._id.toString()).emit("player_joined", createdPlayer);
+
+    return res.status(201).json({
+      message: "Player added successfully",
+      player: createdPlayer,
+      players: game.players
+    });
+  } catch (error) {
+    console.error("Error adding player:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+}
+
+export async function joinGame(req, res) {
+
+  try {
+    const player = req.player;
+    const givenGameId = req.params?.id;
+    const game = await GameModel.findById(givenGameId);
+
+    if (!game) {
+      return res.status(400).json({ message: "Error: Invalid game id" });
+    }
+
+    // check if player's already joined in game
+    if (game.players.some(p => p.player && p.player.toString() === player._id.toString())) {
+      return res.status(409).json({ message: "Player already added to game" });
+    }
+
+    const sanitizedPlayer = {
+      player: player._id,
+      displayName: player.name,
+      isGuest: false,
+      status: "ACTIVE"
+    }
+
+    game.players.push(sanitizedPlayer);
+    await game.save()
+
+    const createdPlayer = game.players[game.players.length - 1];
+
+    // req.io?.to(game._id.toString()).emit("player_joined", createdPlayer);
+
+    return res.status(201).json({
+      message: "Player added successfully",
+      player: createdPlayer,
+      players: game.players
+    });
+
+  } catch (error) {
+    console.error("Error adding player:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+}
+
 export async function updateGame(req, res) {
   try {
     // TODO
