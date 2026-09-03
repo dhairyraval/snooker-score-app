@@ -83,5 +83,6 @@ export async function isHostOrAdmin(req, res, next) {
 }
 
 export function generateAccessToken(player) {
+  // TODO: update expiry date before shipping to prod
   return jwt.sign({ sub: player._id, name: player.name, role: player.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
 }

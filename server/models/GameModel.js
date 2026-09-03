@@ -1,7 +1,5 @@
 import mongoose from "mongoose";
-
-const VALID_BALLS = ['RED', 'YELLOW', 'GREEN', 'BROWN', 'BLUE', 'PINK', 'BLACK'];
-const VALID_PENALTIES = [0, 4, 5, 6, 7];
+import { VALID_BALLS, VALID_PENALTIES, TOTAL_REDS } from "./constants.js";
 
 
 const gamePlayerSchema = new mongoose.Schema({
@@ -93,6 +91,18 @@ const gameSchema = new mongoose.Schema(
       type: Map,
       of: Number,
       default: {}
+    },
+    redsRemaining: {
+      type: Number,
+      default: TOTAL_REDS,
+      min: 0,
+      max: 15
+    },
+    colorClearanceIndex: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 6
     },
     events: {
       type: [eventSchema],
