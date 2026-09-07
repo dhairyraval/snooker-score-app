@@ -34,8 +34,10 @@ export async function protect(req, res, next) {
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {
+      // next(error);
       return res.status(401).json({ message: "Token has expired. Please log in again." });
     }
+    // next(error);
     return res.status(401).json({ message: "Invalid token.", error: error.message });
   }
 }

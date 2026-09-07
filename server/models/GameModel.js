@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { VALID_BALLS, VALID_PENALTIES, TOTAL_REDS } from "./constants.js";
+import { VALID_BALLS, VALID_PENALTIES, TOTAL_REDS } from "../constants.js";
 
 
 const gamePlayerSchema = new mongoose.Schema({
