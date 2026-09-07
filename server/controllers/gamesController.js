@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 import { GameModel } from "../models/GameModel.js";
 import { PlayerModel } from "../models/PlayerModel.js";
+import { processUndoEvent } from "../services/gameEngine.js";
 
 export async function getAllGames(req, res) {
   try {
@@ -304,8 +305,6 @@ export async function startGame(req, res, next) {
 
     await game.save();
 
-
-
     //sockets update
     // req.io?.to(game._id.toString()).emit("game_started", { game });
 
@@ -316,7 +315,7 @@ export async function startGame(req, res, next) {
   }
 }
 
-export async function updateGame(req, res) {
+export async function updateFinalScores(req, res) {
   try {
     // TODO
     res.status(200).json({ message: "updateGame working!" });
@@ -325,12 +324,12 @@ export async function updateGame(req, res) {
   }
 }
 
-export async function addGameEvent(req, res) {
+export async function addGameEvent(req, res, next) {
   try {
     // TODO
     res.status(200).json({ message: "addGameEvent working!" });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    next(error);
   }
 }
 
@@ -340,5 +339,33 @@ export async function deleteGame(req, res) {
     res.status(200).json({ message: "deleteGame working!" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function undoGameEvent(req, res, next) {
+  try {
+    const game = req.game;
+
+    if (!game.events?.length) {
+      return res.status(400).json({ success: false, message: "No events to undo." });
+    }
+    
+    const undoEvent = processUndoEvent(game);
+
+    if (undoEvent?.error) {
+      return res.status(409).json({ success: false, message: undoEvent?.error });
+    }
+
+    Object.assign(game, undoEvent.updatedState);
+    game.markModified("events");
+    await game.save();
+
+    // add socket broadcast
+
+    return res.status(200).json({ message: "Last game event removed.", event: undoEvent.revertedEvent });
+
+  } catch (error) {
+    console.log(error.message);
+    next(error);
   }
 }
