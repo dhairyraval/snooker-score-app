@@ -18,7 +18,7 @@ router.patch("/:id/start", protect, isHostOrAdmin, startGame); // start game (se
 
 router.patch("/:id/leave-game", protect, canModifyGame, leaveGame); // handle a player leaving ongoing game
 
-router.patch("/:id", updateFinalScores);     // update a game's final score
-router.delete("/:id", deleteGame);     // // allowed to host & admin, host cannot delete "COMPLETED" games
+// router.patch("/:id", updateFinalScores);     // update a game's final score
+router.delete("/:id", protect, isHostOrAdmin, deleteGame);     // allowed to host & admin, host cannot delete "COMPLETED" games
 
 export default router;

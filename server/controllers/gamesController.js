@@ -432,10 +432,37 @@ export async function leaveGame(req, res, next) {
 
 export async function deleteGame(req, res, next) {
   try {
-    // TODO
-    res.status(200).json({ message: "deleteGame working!" });
+    const { player, game } = req;    
+    const isOngoing = game.status === "ONGOING";
+    const isAdmin = player.role === "admin";
+
+    if (!isOngoing && !isAdmin) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    // delete game
+    await GameModel.deleteOne({ _id: game._id });
+
+    // // Inform connected clients and clean up the room
+    // const io = req.app.get("io");
+    // if (io) {
+    //   const roomName = `game:${game._id}`;
+    //   io.to(roomName).emit("game:deleted", {
+    //     gameId: game._id,
+    //     message: "This game session was deleted by the host or admin."
+    //   });
+    //   io.in(roomName).socketsLeave(roomName);
+    // }
+
+
+    return res.status(200).json({
+      success: true,
+      message: "Game deleted successfully.",
+      gameId: game._id
+    });
+
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
     next(error);
   }
 }
