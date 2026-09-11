@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 import { GameModel } from "../models/GameModel.js";
 import { PlayerModel } from "../models/PlayerModel.js";
-import { processUndoEvent } from "../services/gameEngine.js";
+import { processTurnEvent, processUndoEvent } from "../services/gameEngine.js";
 
 export async function getAllGames(req, res) {
   try {
@@ -326,8 +326,30 @@ export async function updateFinalScores(req, res) {
 
 export async function addGameEvent(req, res, next) {
   try {
-    // TODO
-    res.status(200).json({ message: "addGameEvent working!" });
+    const game = req.game;
+    const event = req.body?.event;
+
+    if(!event || typeof event !== "object" || Array.isArray(event)){
+      return res.status(400).json({message: "invalid or missing event object"});
+    }
+    const currPlayer = event?.currPlayer;
+    const isValidPlayerId = mongoose.Types.ObjectId.isValid(currPlayer);
+    if(!isValidPlayerId){
+      return res.status(400).json({message:"invalid or missing current player in game event"});
+    }
+
+    const processEvent = processTurnEvent(game, event);
+    if(processEvent?.error){
+      return res.status(400).json({message: `Error: ${processEvent.error}`});
+    }
+
+    Object.assign(game, processEvent.updatedState);
+    game.markModified("events");
+    await game.save();
+
+    // add socket broadcast
+
+    return res.status(200).json({ message: "Added game event", event: processEvent.lastEvent, game: processEvent.updatedState });
   } catch (error) {
     next(error);
   }
@@ -349,7 +371,7 @@ export async function undoGameEvent(req, res, next) {
     if (!game.events?.length) {
       return res.status(400).json({ success: false, message: "No events to undo." });
     }
-    
+
     const undoEvent = processUndoEvent(game);
 
     if (undoEvent?.error) {

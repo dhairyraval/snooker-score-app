@@ -1,4 +1,4 @@
-import { BALL_POINTS, COLOR_ORDER, VALID_PENALTIES, TOTAL_REDS } from "./constants.js";
+import { BALL_POINTS, COLOR_ORDER, VALID_PENALTIES, TOTAL_REDS } from "../constants.js";
 
 /**
  * Validates break pot ordering against standard snooker rules.
