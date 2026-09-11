@@ -19,7 +19,7 @@ const gamePlayerSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['ACTIVE', 'FORFEITED', 'LEFT'],
+    enum: ['ACTIVE', 'FORFEITED'],
     default: 'ACTIVE'
   },
   joinedAt: {

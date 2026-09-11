@@ -329,18 +329,18 @@ export async function addGameEvent(req, res, next) {
     const game = req.game;
     const event = req.body?.event;
 
-    if(!event || typeof event !== "object" || Array.isArray(event)){
-      return res.status(400).json({message: "invalid or missing event object"});
+    if (!event || typeof event !== "object" || Array.isArray(event)) {
+      return res.status(400).json({ message: "invalid or missing event object" });
     }
     const currPlayer = event?.currPlayer;
     const isValidPlayerId = mongoose.Types.ObjectId.isValid(currPlayer);
-    if(!isValidPlayerId){
-      return res.status(400).json({message:"invalid or missing current player in game event"});
+    if (!isValidPlayerId) {
+      return res.status(400).json({ message: "invalid or missing current player in game event" });
     }
 
     const processEvent = processTurnEvent(game, event);
-    if(processEvent?.error){
-      return res.status(400).json({message: `Error: ${processEvent.error}`});
+    if (processEvent?.error) {
+      return res.status(400).json({ message: `Error: ${processEvent.error}` });
     }
 
     Object.assign(game, processEvent.updatedState);
@@ -355,12 +355,88 @@ export async function addGameEvent(req, res, next) {
   }
 }
 
-export async function deleteGame(req, res) {
+export async function leaveGame(req, res, next) {
+  try {
+    const game = req.game;
+    const playerLeavingId = req.body?.leavingPlayerId;
+    const isValidPlayerId = mongoose.Types.ObjectId.isValid(playerLeavingId);
+
+    if (!isValidPlayerId) {
+      return res.status(400).json({ message: "invalid or missing player id" });
+    }
+
+    //check if given player is involved in-game (registered player or guest player)
+    const inGamePlayer = game.players.find(
+      p => (p._id.toString() === playerLeavingId && p.status === "ACTIVE")
+    );
+
+    if (!inGamePlayer) {
+      return res.status(403).json({ message: "Error: Not an active player not involved in game" });
+    }
+
+    // update player status, broadcast changes
+    inGamePlayer.status = "FORFEITED";
+
+
+    // handle host migration
+    const isHost = game.host.toString() === inGamePlayer.player?.toString();
+    if (isHost) {
+      // find the next active registered player
+      const nextHostCandidate = game.players.find(
+        (p) =>
+          p.player &&
+          p.status === "ACTIVE" &&
+          p._id.toString() !== playerLeavingId.toString()
+      );
+
+      if (nextHostCandidate) {
+        game.host = nextHostCandidate.player;
+      } else {
+        game.status = "ABANDONED";
+      }
+    }
+
+    // evaluate match state if not abandonded
+    if (game.status !== "ABANDONED") {
+      const activePlayers = game.players.filter((p) => p.status === "ACTIVE");
+
+      if (activePlayers.length <= 1) {
+        // Auto-win condition: 1 or 0 players remain
+        game.status = "COMPLETE";
+        game.winner = activePlayers[0]?._id || null;
+
+      } else if (game.players[game.curr_turn]._id.toString() === playerLeavingId) {
+        // Advance turn to the next active player if striker left
+        let nextTurn = (game.curr_turn + 1) % game.players.length;
+        while (game.players[nextTurn].status !== "ACTIVE") {
+          nextTurn = (nextTurn + 1) % game.players.length;
+        }
+        game.curr_turn = nextTurn;
+      }
+    }
+
+    game.markModified("players");
+    await game.save();
+    // add socket broadcast
+
+    return res.status(200).json({
+      success: true,
+      message: "Player forfeited successfully.",
+      game
+    });
+
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteGame(req, res, next) {
   try {
     // TODO
     res.status(200).json({ message: "deleteGame working!" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+    next(error);
   }
 }
 
