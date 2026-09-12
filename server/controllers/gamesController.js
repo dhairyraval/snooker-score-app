@@ -315,12 +315,56 @@ export async function startGame(req, res, next) {
   }
 }
 
-export async function updateFinalScores(req, res) {
+export async function updateFinalScores(req, res, next) {
   try {
-    // TODO
-    res.status(200).json({ message: "updateGame working!" });
+    const game = req.game;
+    const scores = req.body?.scores;
+
+    if (game.status !== "COMPLETE") {
+      return res.status(400).json({ message: "Cannot update scores of ongoing or abandonded games" });
+    }
+
+    if (!Array.isArray(scores) || scores.length !== game.players.length) {
+      return res.status(400).json({ message: "Scores must match the exact number of players." });
+    }
+
+    // non-negative safe integers
+    const isValid = scores.every(s => typeof s === "number" && Number.isInteger(s) && s >= 0);
+    if (!isValid) {
+      return res.status(400).json({ message: "All scores must be non-negative integers." });
+    }
+
+    const maxScore = Math.max(...scores);
+    const maxScoreIdx = scores.indexOf(maxScore);
+
+    // update finalScores
+    game.players.forEach((player, idx) => {
+      game.finalScores.set(player._id.toString(), scores[idx]);
+    });
+    
+    // if 2 players have same score -- no winner
+    if (maxScoreIdx !== scores.lastIndexOf(maxScore)) {
+      game.winner = null;
+    }
+    else {
+      game.winner = game.players[maxScoreIdx]._id;
+    }
+
+    game.markModified("finalScores");
+    await game.save();
+
+    // const io = req.app.get("io");
+    // if (io) {
+    //   io.to(`game:${game._id}`).emit("game:scores_updated", {
+    //     gameId: game._id,
+    //     finalScores: game.finalScores,
+    //     winner: game.winner
+    //   });
+    // }
+
+    return res.status(200).json({ success: true, message: "final scores updated successfully", game: game });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    next(error);
   }
 }
 
@@ -432,7 +476,7 @@ export async function leaveGame(req, res, next) {
 
 export async function deleteGame(req, res, next) {
   try {
-    const { player, game } = req;    
+    const { player, game } = req;
     const isOngoing = game.status === "ONGOING";
     const isAdmin = player.role === "admin";
 
