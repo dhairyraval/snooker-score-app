@@ -55,9 +55,7 @@ export async function getGame(req, res) {
   }
 }
 
-export async function createGame(req, res) {
-  // get name from req.body
-  // get host from req.player._id
+export async function createGame(req, res, next) {
   try {
     const { gameName, visibility = "PUBLIC", registeredPlayerIds = [], guestNames = [] } = req.body;
     if (!gameName || gameName.trim().length === 0) return res.status(400).json({ message: "Error: Need to provide game name" });
@@ -123,16 +121,22 @@ export async function createGame(req, res) {
       players: newGamePlayers,
       visibility: visibility
     });
-    res.status(201).json({ newGame });
+
+    return res.status(201).json({ newGame });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 }
 
-export async function addGuest(req, res) {
+export async function addGuest(req, res, next) {
   try {
     const gName = req.body?.gName;
     const game = req.game;
+
+    if (game.status === "COMPLETE" || game.status === "ABANDONED") {
+      return res.status(400).json({ message: "Cannot add players to a completed or abandoned game." });
+    }
+
     if (!gName || typeof gName !== "string" || gName.trim().length === 0) {
       return res.status(400).json({ message: "Error: Need to provide guest name" });
     }
@@ -156,12 +160,16 @@ export async function addGuest(req, res) {
       status: "ACTIVE"
     }
 
-    game.players.push(sanitizedGuest);
-    await game.save()
+    const createdGuest = game.players.create(sanitizedGuest);
+    game.players.push(createdGuest);
+    game.markModified("players")
+    await game.save();
 
-    const createdGuest = game.players[game.players.length - 1];
-
-    // req.io?.to(game._id.toString()).emit("player_joined", createdGuest);
+    const io = req.app.get("io");
+    io?.to(`game:${game._id.toString()}`).emit("player_joined", {
+      newPlayer: createdGuest,
+      players: game.players
+    });
 
     return res.status(201).json({
       message: "Guest added successfully",
@@ -169,8 +177,8 @@ export async function addGuest(req, res) {
       players: game.players
     });
   } catch (error) {
-    console.error("Error adding guest:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    // console.error("Error adding guest:", error);
+    next(error);
   }
 }
 
@@ -242,7 +250,8 @@ export async function joinGame(req, res) {
 
     const createdPlayer = game.players[game.players.length - 1];
 
-    // req.io?.to(game._id.toString()).emit("player_joined", createdPlayer);
+    // const io = req.app.get("io");
+    // io?.to(game._id.toString()).emit("player_joined", createdPlayer);
 
     return res.status(201).json({
       message: "Player added successfully",
@@ -341,7 +350,7 @@ export async function updateFinalScores(req, res, next) {
     game.players.forEach((player, idx) => {
       game.finalScores.set(player._id.toString(), scores[idx]);
     });
-    
+
     // if 2 players have same score -- no winner
     if (maxScoreIdx !== scores.lastIndexOf(maxScore)) {
       game.winner = null;
