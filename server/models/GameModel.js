@@ -78,6 +78,10 @@ const gameSchema = new mongoose.Schema(
       enum: ['PUBLIC', 'PRIVATE'],
       default: 'PUBLIC'
     },
+    isRanked: {
+      type: Boolean,
+      default: true
+    },
     status: {
       type: String,
       enum: ['ONGOING', 'COMPLETE', 'ABANDONED'],

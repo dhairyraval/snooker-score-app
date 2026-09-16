@@ -57,13 +57,22 @@ export async function getGame(req, res) {
 
 export async function createGame(req, res, next) {
   try {
-    const { gameName, visibility = "PUBLIC", registeredPlayerIds = [], guestNames = [] } = req.body;
-    if (!gameName || gameName.trim().length === 0) return res.status(400).json({ message: "Error: Need to provide game name" });
+    const { gameName, visibility = "PUBLIC" } = req.body || {};
     const player = req.player;
-    if (!player) return res.status(404).json({ message: "Error 404: Player not found" });
+    const trimmedName = typeof gameName === "string" ? gameName.trim() : "";
 
-    // newGamePlayers - an array containting objects of gamePlayerSchema
-    // first player is always the host - added directly
+    if (!trimmedName) {
+      return res.status(400).json({ message: "Error: Game name is required." });
+    }
+    if (trimmedName.length > 60) {
+      return res.status(400).json({ message: "Error: Game name must be under 60 characters." });
+    }
+
+    const normalizedVisibility = typeof visibility === "string" ? visibility.toUpperCase() : null;
+    if (!["PUBLIC", "PRIVATE"].includes(normalizedVisibility)) {
+      return res.status(400).json({ message: "Error: Visibility must be either PUBLIC or PRIVATE." });
+    }
+
     const newGamePlayers = [
       {
         player: player._id,
@@ -73,53 +82,11 @@ export async function createGame(req, res, next) {
       }
     ];
 
-    const hostIdStr = player._id.toString();
-
-    // validate and add other registered players
-    if (Array.isArray(registeredPlayerIds) && registeredPlayerIds.length > 0) {
-      const validIds = [
-        ...new Set(
-          registeredPlayerIds
-            .map((id) => (typeof id === "string" ? id.trim() : ""))
-            .filter((id) => mongoose.Types.ObjectId.isValid(id) && id !== hostIdStr)
-        )
-      ];
-
-      if (validIds.length > 0) {
-        const registeredPlayers = await PlayerModel.find({
-          _id: { $in: validIds }
-        }).select("_id name").lean();
-
-        const formattedRegisteredPlayers = registeredPlayers.map((player) => ({
-          player: player._id,
-          displayName: player.name,
-          isGuest: false,
-          status: "ACTIVE"
-        }));
-
-        newGamePlayers.push(...formattedRegisteredPlayers)
-      }
-    }
-
-    // validate and add guests
-    if (Array.isArray(guestNames)) {
-      const sanitizedGuests = guestNames
-        .map((gName) => (typeof gName === "string" ? gName.trim() : ""))
-        .filter((gName) => gName.length > 0)
-        .map((gName) => ({
-          player: null,
-          displayName: gName,
-          isGuest: true,
-          status: "ACTIVE"
-        }));
-
-      newGamePlayers.push(...sanitizedGuests);
-    }
     const newGame = await GameModel.create({
-      name: gameName,
+      name: trimmedName,
       host: player._id,
       players: newGamePlayers,
-      visibility: visibility
+      visibility: normalizedVisibility
     });
 
     return res.status(201).json({ newGame });
@@ -166,7 +133,7 @@ export async function addGuest(req, res, next) {
     await game.save();
 
     const io = req.app.get("io");
-    io?.to(`game:${game._id.toString()}`).emit("player_joined", {
+    io?.to(`game:${game._id}`).emit("player_joined", {
       newPlayer: createdGuest,
       players: game.players
     });
@@ -192,12 +159,12 @@ export async function addPlayer(req, res, next) {
     }
 
     if (!pId || !mongoose.Types.ObjectId.isValid(pId)) {
-      return res.status(400).json({ message: "Error: Valid player ID (pId) is required." });
+      return res.status(400).json({ message: "Error: Valid player ID (pId) is required" });
     }
 
     const playerToAdd = await PlayerModel.findById(pId).select("_id name").lean();
     if (!playerToAdd) {
-      return res.status(404).json({ message: "Error: Player not found." });
+      return res.status(404).json({ message: "Error: Player not found" });
     }
     const playerIdStr = playerToAdd._id.toString();
 
@@ -211,7 +178,7 @@ export async function addPlayer(req, res, next) {
       (p) => p.displayName.toLowerCase() === playerToAdd.name.toLowerCase()
     );
     if (nameExists) {
-      return res.status(409).json({ message: "A player or guest with this display name is already in the game." });
+      return res.status(409).json({ message: "A player or guest with this display name is already in the game" });
     }
 
     const sanitizedPlayer = {
@@ -228,7 +195,7 @@ export async function addPlayer(req, res, next) {
     await game.save();
 
     const io = req.app.get("io");
-    io?.to(`game:${game._id.toString()}`).emit("player_joined", {
+    io?.to(`game:${game._id}`).emit("player_joined", {
       newPlayer: createdPlayer,
       players: game.players
     });
@@ -244,20 +211,39 @@ export async function addPlayer(req, res, next) {
   }
 }
 
-export async function joinGame(req, res) {
+export async function joinGame(req, res, next) {
 
   try {
     const player = req.player;
     const givenGameId = req.params?.id;
+
+    if (!givenGameId || !mongoose.Types.ObjectId.isValid(givenGameId)) {
+      return res.status(400).json({ message: "Error: Invalid or missing game ID" });
+    }
+
     const game = await GameModel.findById(givenGameId);
 
     if (!game) {
-      return res.status(400).json({ message: "Error: Invalid game id" });
+      return res.status(404).json({ message: "Error: game not found" });
     }
 
+    if (game.status === "COMPLETE" || game.status === "ABANDONED") {
+      return res.status(400).json({ message: "Cannot add players to a completed or abandoned game." });
+    }
+
+    const playerIdStr = player._id.toString();
+
     // check if player's already joined in game
-    if (game.players.some(p => p.player && p.player.toString() === player._id.toString())) {
+    if (game.players.some(p => p.player && p.player.toString() === playerIdStr)) {
       return res.status(409).json({ message: "Player already added to game" });
+    }
+
+    // duplicate name display checks
+    const nameExists = game.players.some(
+      (p) => p.displayName.toLowerCase() === player.name.toLowerCase()
+    );
+    if (nameExists) {
+      return res.status(409).json({ message: "A player with this name is already in the game -- pls contact host or admin" });
     }
 
     const sanitizedPlayer = {
@@ -267,13 +253,18 @@ export async function joinGame(req, res) {
       status: "ACTIVE"
     }
 
-    game.players.push(sanitizedPlayer);
+
+    const createdPlayer = game.players.create(sanitizedPlayer);
+    game.players.push(createdPlayer);
+    game.markModified("players");
     await game.save()
 
-    const createdPlayer = game.players[game.players.length - 1];
 
-    // const io = req.app.get("io");
-    // io?.to(game._id.toString()).emit("player_joined", createdPlayer);
+    const io = req.app.get("io");
+    io?.to(`game:${game._id}`).emit("player_joined", {
+      newPlayer: createdPlayer,
+      players: game.players
+    });
 
     return res.status(201).json({
       message: "Player added successfully",
@@ -282,8 +273,8 @@ export async function joinGame(req, res) {
     });
 
   } catch (error) {
-    console.error("Error adding player:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    // console.error("Error adding player:", error);
+    next(error);
   }
 }
 
@@ -295,12 +286,17 @@ export async function startGame(req, res, next) {
     const game = req.game;
     const subDocIds = req.body?.subDocIds;
 
-    if (game.status !== "ONGOING") {
+    if (game.status === "COMPLETE" || game.status === "ABANDONED") {
       return res.status(409).json({ message: "Game has concluded." });
     }
 
     if (!game.players || game.players.length < 1) {
       return res.status(400).json({ message: "Cannot start a game with no players." });
+    }
+
+    const activePlayers = game.players.filter(p => p.status === "ACTIVE");
+    if (activePlayers.length === 1) {
+      game.isRanked = false;
     }
 
     if (subDocIds != null) {
@@ -337,7 +333,10 @@ export async function startGame(req, res, next) {
     await game.save();
 
     //sockets update
-    // req.io?.to(game._id.toString()).emit("game_started", { game });
+    const io = req.app.get("io");
+    io?.to(`game:${game._id}`).emit("game_started", {
+      game: game.toObject()
+    });
 
     return res.status(200).json({ message: "Game started successfully", game });
 
@@ -404,27 +403,36 @@ export async function addGameEvent(req, res, next) {
     const game = req.game;
     const event = req.body?.event;
 
+    if (game.status !== "ONGOING") {
+      return res.status(409).json({ message: "Cannot add events to a concluded or non-started game." });
+    }
+
     if (!event || typeof event !== "object" || Array.isArray(event)) {
       return res.status(400).json({ message: "invalid or missing event object" });
     }
     const currPlayer = event?.currPlayer;
-    const isValidPlayerId = mongoose.Types.ObjectId.isValid(currPlayer);
-    if (!isValidPlayerId) {
+    if (!currPlayer || !mongoose.Types.ObjectId.isValid(currPlayer)) {
       return res.status(400).json({ message: "invalid or missing current player in game event" });
     }
 
-    const processEvent = processTurnEvent(game, event);
-    if (processEvent?.error) {
-      return res.status(400).json({ message: `Error: ${processEvent.error}` });
+    const result = processTurnEvent(game, event);
+    if (result?.error) {
+      return res.status(400).json({ message: `Error: ${result.error}` });
     }
 
-    Object.assign(game, processEvent.updatedState);
+    Object.assign(game, result.updatedState);
     game.markModified("events");
     await game.save();
 
-    // add socket broadcast
+    // socket broadcast
+    const io = req.app.get("io");
+    const gamePayload = game.toObject();
+    io?.to(`game:${game._id}`)?.emit("add_event", {
+      event: result.lastEvent,
+      game: gamePayload
+    });
 
-    return res.status(200).json({ message: "Added game event", event: processEvent.lastEvent, game: processEvent.updatedState });
+    return res.status(200).json({ message: "Added game event", event: result.lastEvent, game: gamePayload });
   } catch (error) {
     next(error);
   }
@@ -518,24 +526,19 @@ export async function deleteGame(req, res, next) {
     // delete game
     await GameModel.deleteOne({ _id: game._id });
 
-    // // Inform connected clients and clean up the room
-    // const io = req.app.get("io");
-    // if (io) {
-    //   const roomName = `game:${game._id}`;
-    //   io.to(roomName).emit("game:deleted", {
-    //     gameId: game._id,
-    //     message: "This game session was deleted by the host or admin."
-    //   });
-    //   io.in(roomName).socketsLeave(roomName);
-    // }
-
+    // Inform connected clients and clean up the room
+    const io = req.app.get("io");
+    if (io) {
+      const room = `game:${game._id}`;
+      io.to(room).emit("game_deleted", { gameId: game._id });
+      io.in(room).socketsLeave(room);
+    }
 
     return res.status(200).json({
       success: true,
       message: "Game deleted successfully.",
       gameId: game._id
     });
-
 
   } catch (error) {
     next(error);
@@ -550,19 +553,27 @@ export async function undoGameEvent(req, res, next) {
       return res.status(400).json({ success: false, message: "No events to undo." });
     }
 
-    const undoEvent = processUndoEvent(game);
+    const result = processUndoEvent(game);
 
-    if (undoEvent?.error) {
-      return res.status(409).json({ success: false, message: undoEvent?.error });
+    if (result?.error) {
+      return res.status(409).json({ success: false, message: result?.error });
     }
 
-    Object.assign(game, undoEvent.updatedState);
+    Object.assign(game, result.updatedState);
     game.markModified("events");
     await game.save();
 
-    // add socket broadcast
-
-    return res.status(200).json({ message: "Last game event removed.", event: undoEvent.revertedEvent });
+    // socket broadcast
+    const io = req.app.get("io");
+    const gamePayload = game.toObject();
+    if (io) {
+      const room = `game:${game._id}`;
+      io.to(room).emit("undo_event", {
+        undoEvent: result.revertedEvent,
+        game: gamePayload
+      });
+    }
+    return res.status(200).json({ message: "Last game event removed.", event: result.revertedEvent, game: gamePayload});
 
   } catch (error) {
     console.log(error.message);
