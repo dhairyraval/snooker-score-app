@@ -182,19 +182,36 @@ export async function addGuest(req, res, next) {
   }
 }
 
-export async function addPlayer(req, res) {
+export async function addPlayer(req, res, next) {
   try {
-    const playerToAdd = await PlayerModel.findById(req.body?.pId);
-
-    if (!playerToAdd) {
-      return res.status(409).json({ message: "Error: Invalid player id provided" });
-    }
-
+    const { pId } = req.body;
     const game = req.game;
 
+    if (game.status === "COMPLETE" || game.status === "ABANDONED") {
+      return res.status(400).json({ message: "Cannot add players to a completed or abandoned game." });
+    }
+
+    if (!pId || !mongoose.Types.ObjectId.isValid(pId)) {
+      return res.status(400).json({ message: "Error: Valid player ID (pId) is required." });
+    }
+
+    const playerToAdd = await PlayerModel.findById(pId).select("_id name").lean();
+    if (!playerToAdd) {
+      return res.status(404).json({ message: "Error: Player not found." });
+    }
+    const playerIdStr = playerToAdd._id.toString();
+
     // check if player's already joined in game
-    if (game.players.some(p => p.player && p.player.toString() === playerToAdd._id.toString())) {
+    if (game.players.some(p => p.player && p.player.toString() === playerIdStr)) {
       return res.status(409).json({ message: "Player already added to game" });
+    }
+
+    // duplicate name checks
+    const nameExists = game.players.some(
+      (p) => p.displayName.toLowerCase() === playerToAdd.name.toLowerCase()
+    );
+    if (nameExists) {
+      return res.status(409).json({ message: "A player or guest with this display name is already in the game." });
     }
 
     const sanitizedPlayer = {
@@ -204,12 +221,17 @@ export async function addPlayer(req, res) {
       status: "ACTIVE"
     }
 
-    game.players.push(sanitizedPlayer);
-    await game.save()
 
-    const createdPlayer = game.players[game.players.length - 1];
+    const createdPlayer = game.players.create(sanitizedPlayer);
+    game.players.push(createdPlayer);
+    game.markModified("players")
+    await game.save();
 
-    // req.io?.to(game._id.toString()).emit("player_joined", createdPlayer);
+    const io = req.app.get("io");
+    io?.to(`game:${game._id.toString()}`).emit("player_joined", {
+      newPlayer: createdPlayer,
+      players: game.players
+    });
 
     return res.status(201).json({
       message: "Player added successfully",
@@ -217,8 +239,8 @@ export async function addPlayer(req, res) {
       players: game.players
     });
   } catch (error) {
-    console.error("Error adding player:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    // console.error("Error adding player:", error);
+    next(error);
   }
 }
 
